@@ -2,6 +2,15 @@ import { sql, parseJson } from "../../../../lib/db";
 
 const ALLOWED_UPDATE_FIELDS = ["title", "notes", "slots", "participants", "closed"];
 
+// A request may manage a poll either with that poll's own manage passcode
+// (in the body) or with the app-wide create passcode (header) acting as a
+// master admin key from the polls dashboard.
+function canManage(req, managePasscode) {
+  if (req.headers["x-create-passcode"] === process.env.CREATE_PASSCODE) return true;
+  const { passcode } = req.body || {};
+  return passcode === managePasscode;
+}
+
 export default async function handler(req, res) {
   const { code } = req.query;
 
@@ -37,10 +46,10 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "PATCH") {
-    const { passcode, updates } = req.body || {};
+    const { updates } = req.body || {};
     const pollRows = await sql`select manage_passcode from polls where code = ${code}`;
     if (pollRows.length === 0) return res.status(404).json({ error: "Poll not found." });
-    if (passcode !== pollRows[0].manage_passcode) return res.status(403).json({ error: "Wrong manage passcode." });
+    if (!canManage(req, pollRows[0].manage_passcode)) return res.status(403).json({ error: "Wrong manage passcode." });
 
     const cleanUpdates = {};
     for (const key of ALLOWED_UPDATE_FIELDS) {
@@ -72,10 +81,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
-    const { passcode } = req.body || {};
     const pollRows = await sql`select manage_passcode from polls where code = ${code}`;
     if (pollRows.length === 0) return res.status(404).json({ error: "Poll not found." });
-    if (passcode !== pollRows[0].manage_passcode) return res.status(403).json({ error: "Wrong manage passcode." });
+    if (!canManage(req, pollRows[0].manage_passcode)) return res.status(403).json({ error: "Wrong manage passcode." });
 
     await sql`delete from responses where poll_code = ${code}`;
     await sql`delete from polls where code = ${code}`;

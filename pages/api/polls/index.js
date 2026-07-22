@@ -1,9 +1,27 @@
 import { sql } from "../../../lib/db";
 import { genCode } from "../../../lib/util";
 
+function checkCreatePasscode(req) {
+  return req.headers["x-create-passcode"] === process.env.CREATE_PASSCODE;
+}
+
 export default async function handler(req, res) {
+  // Admin dashboard listing — gated by the create passcode (via header).
+  if (req.method === "GET") {
+    if (!checkCreatePasscode(req)) return res.status(403).json({ error: "Wrong passcode." });
+    const rows = await sql`
+      select p.code, p.title, p.closed, p.created_at,
+        jsonb_array_length(p.slots) as slot_count,
+        jsonb_array_length(p.participants) as participant_count,
+        (select count(*)::int from responses r where r.poll_code = p.code) as response_count
+      from polls p
+      order by p.created_at desc
+    `;
+    return res.status(200).json({ polls: rows });
+  }
+
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
 

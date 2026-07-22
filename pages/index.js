@@ -51,6 +51,11 @@ export default function Home() {
           Go
         </button>
       </div>
+
+      <hr className="divider" />
+      <Link href="/polls" className="faint" style={{ textDecoration: "underline" }}>
+        Manage all your polls →
+      </Link>
     </div>
   );
 }
