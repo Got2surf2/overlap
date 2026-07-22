@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Link from "next/link";
+import CalendarMark from "../components/CalendarMark";
 
 export default function Home() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function Home() {
         <title>Overlap — find a time everyone can make</title>
       </Head>
       <Link href="/" className="brand">
-        <span className="brand-mark">🔥</span>
+        <span className="brand-mark"><CalendarMark /></span>
         <span className="brand-name">Overlap</span>
       </Link>
 

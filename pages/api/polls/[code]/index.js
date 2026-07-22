@@ -1,6 +1,6 @@
 import { sql, parseJson } from "../../../../lib/db";
 
-const ALLOWED_UPDATE_FIELDS = ["title", "notes", "slots", "closed"];
+const ALLOWED_UPDATE_FIELDS = ["title", "notes", "slots", "participants", "closed"];
 
 export default async function handler(req, res) {
   const { code } = req.query;
@@ -16,6 +16,21 @@ export default async function handler(req, res) {
 
     const { manage_passcode, ...safePoll } = pollRows[0];
     safePoll.slots = parseJson(safePoll.slots);
+    safePoll.participants = parseJson(safePoll.participants) || [];
+
+    // Auto-prune any date more than 2 days in the past, so stale slots don't
+    // accumulate. Runs on read; only writes back when something was removed.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 2);
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(
+      cutoff.getDate()
+    ).padStart(2, "0")}`;
+    const keptSlots = safePoll.slots.filter((s) => s.date >= cutoffStr);
+    if (keptSlots.length !== safePoll.slots.length) {
+      safePoll.slots = keptSlots;
+      await sql`update polls set slots = ${JSON.stringify(keptSlots)}::jsonb where code = ${code}`;
+    }
+
     const responses = responseRows.map((r) => ({ ...r, choices: parseJson(r.choices) }));
 
     return res.status(200).json({ poll: safePoll, responses });
@@ -42,6 +57,9 @@ export default async function handler(req, res) {
       }
       if ("slots" in cleanUpdates) {
         await sql`update polls set slots = ${JSON.stringify(cleanUpdates.slots)}::jsonb where code = ${code}`;
+      }
+      if ("participants" in cleanUpdates) {
+        await sql`update polls set participants = ${JSON.stringify(cleanUpdates.participants)}::jsonb where code = ${code}`;
       }
       if ("closed" in cleanUpdates) {
         await sql`update polls set closed = ${cleanUpdates.closed} where code = ${code}`;

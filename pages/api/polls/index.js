@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { passcode, title, notes, slots, managePasscode } = req.body || {};
+  const { passcode, title, notes, slots, participants, managePasscode } = req.body || {};
 
   // Real server-side check -- this never runs in the browser, so the
   // passcode itself is never shipped to the client.
@@ -23,6 +23,9 @@ export default async function handler(req, res) {
   if (!managePasscode || typeof managePasscode !== "string" || !managePasscode.trim()) {
     return res.status(400).json({ error: "A manage passcode is required." });
   }
+  const cleanParticipants = Array.isArray(participants)
+    ? participants.map((p) => String(p).trim()).filter(Boolean)
+    : [];
 
   let code = genCode();
   // Extremely unlikely to collide, but guard against it anyway.
@@ -34,8 +37,8 @@ export default async function handler(req, res) {
 
   try {
     await sql`
-      insert into polls (code, title, notes, slots, closed, manage_passcode)
-      values (${code}, ${title.trim()}, ${(notes || "").trim()}, ${JSON.stringify(slots)}::jsonb, false, ${managePasscode.trim()})
+      insert into polls (code, title, notes, slots, participants, closed, manage_passcode)
+      values (${code}, ${title.trim()}, ${(notes || "").trim()}, ${JSON.stringify(slots)}::jsonb, ${JSON.stringify(cleanParticipants)}::jsonb, false, ${managePasscode.trim()})
     `;
   } catch (e) {
     return res.status(500).json({ error: "Could not create poll." });
